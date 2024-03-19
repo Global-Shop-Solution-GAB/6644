@@ -1,0 +1,531 @@
+'This library helps with the use of the 6004 Call wrapper, Upload Sales Orders (ORDUPCM3). To use it, simply fill out the 6004Header with the header data for each Sales Order/Quote that will be contained
+'in the file. Then fill out the 6004Lines data table with the data for each line to be uploaded The tables are linked on OrderNum, so make sure that each header has at least one line with a matching order
+'number and each line has a header with the same order number as the line for best results. Note that each field will be padded automatically when the library function is called to the max size for each 
+'field. The parameters for the call to the callwrapper will default to the current company code, the current user, and the file will be named LDCCCTTT. You can override these parameters by setting
+'V.Global.s6004Company, V.Global.s6004User, and V.Global.s6004FileName before calling the callwrapper through this library. To call the callwrapper using this library call either 6004Sync or 6004Async using F.Intrinsic.Control.Callsub.
+'
+'The datatables are structed as follows:
+'6004Header
+'Column				=	Parameter				=	Value Format	=	Field Size
+'================================================================================================================
+'Type				=	Upload Type				=	O/Q				=	1
+'CustNum			=	Customer Number			=					=	7
+'OrderNum			=	Order Number			=					=	7
+'Freight			=	Freight					=	8.2*			=	10
+'TaxFreightFlag		=	Tax Freight Flag		=	Y/N				=	1
+'FreightPerPiece	=	Freight Per Piece Flag	=	Y/N				=	1
+'DueDate			=	Order Due Date			=	YYYYMMDD		=	8
+'OrdDate			=	Order Date				=	YYYYMMDD		=	8
+'User1				=	User Field 1			=					=	30
+'User2				=	User Field 2			=					=	30
+'User3				=	User Field 3			=					=	30
+'User4				=	User Field 4			=					=	30
+'User5				=	User Field 5			=					=	30
+'UserID				=	User ID					=					=	8
+'PO					=	Purchase Order			=					=	15
+'Filler1			=	Filler Data				=					=	15
+'FreightCurrFlag	=	Freight Currency Flag	=	Y/N				=	1
+'Filler2			=	Filler Data				=					=	1
+'ShipVia			=	Ship Via				=					=	20
+'Carrier			=	Carrier					=					=	6
+'ShipName			=	Ship To Name			=					=	30
+'ShipAddr1			=	Ship To Address 1		=					=	30
+'ShipAddr2			=	Ship To Address 2		=					=	30
+'ShipAddr3			=	Ship To Address 3		=					=	30
+'ShipCity			=	Ship To City			=					=	25
+'ShipState			=	Ship To State			=					=	2
+'ShipZip			=	Ship To Zip				=					=	13
+'ShipCountry		=	Ship To Country			=					=	3
+'ShipAttn			=	Ship To Attention		=					=	30
+'Filler3			=	Filler Data				=					=	11
+'
+'OrderType			=	Order Type 				=	Regular = ""	=	1
+'													Invoice = "X"		
+'													Transfer = "T"		
+'													Blanket = "B"		
+'OrderDiscountPer	=	Order Discount Percent	=	1.4*			=	5
+'Salesman			=	Salesman				=					=	3
+'Filler5			=	Filler5					=					=	75
+'OverrideAutoNum	=	Override Auto Numbering =	1 or 0			=	1
+'ShipToId			=	Ship To ID				=					=	6
+'MarkShipment		=	Mark Shipment			=					=	30
+'ContactName		=	Contact Name			=					=	30
+'FromLocation		=	From Location			=					=	2
+'Filler6			=	Filler6					=					=	85
+'================================================================================================================
+'
+'6004Lines
+'Column					=	Parameter				=	Value Format	=	Field Size
+'================================================================================================================
+'OrderNum**				=	Order Number			=					=	7
+'LineNumber				=	Line Number				=					=	3
+'Filler1				=	Filler Data				=					=	1
+'QtyOrdered				=	Quantity Ordered		=	9.4*			=	13
+'Weight					=	Weight					=	7.3*			=	10
+'UM						=	Unit of Measure			=					=	2
+'Part					=	Part Number				=					=	17
+'Rev					=	Part Revision			=					=	3
+'Filler2				=	Filler Data				=					=	18
+'Location				=	Location				=					=	2
+'QuotedPrice			=	Quoted Price			=	10.6*			=	16
+'OverridePrice			=	Override Price			=	10.6*			=	16
+'Cost					=	Cost					=	10.6*			=	16
+'PartDescription		=	Part Description		=					=	30
+'PL						=	Product Line			=					=	3
+'OrderDate				=	Order Date				=	YYYYMMDD		=	8
+'PromiseDate			=	Promise Date			=	YYYYMMDD		=	8
+'User1					=	User Field 1			=					=	30
+'User2					=	User Field 2			=					=	30
+'User3					=	User Field 3			=					=	30
+'User4					=	User Field 4			=					=	30
+'User5					=	User Field 5			=					=	30
+'ExtendedAmount			=	Extended Amount			=	10.6*			=	16
+'NoDeliveryBeforeDate	=	No Delivery Before Date	=	YYYYMMDD		=	8
+'MustDeliverByDate		=	Must Deliver By Date	=	YYYYMMDD		=	8
+'Filler3				=	Filler Data				=					=	1
+'Text1					=	User Text Field 1		=					=	30
+'Text2					=	User Text Field 2		=					=	30
+'Text3					=	User Text Field 3		=					=	30
+'Text4					=	User Text Field 4		=					=	30
+'Text5					=	User Text Field 5		=					=	30
+'Text6					=	User Text Field 6		=					=	30
+'Text7					=	User Text Field 7		=					=	30
+'Text8					=	User Text Field 8		=					=	30
+'Text9					=	User Text Field 9		=					=	30
+'Text10					=	User Text Field 10		=					=	30
+'TaxStatusFlag			=	Tax Status Flag			=	"E" - Exempt	=	1
+'													=	"T" - Taxable	=	
+'LineType				=	Line Type				=	"B" - Buyout	=	1
+'													=	"D" - Dropship	=	
+'													=	"S" - Standard	=	
+'Filler4				=	Filler Data				=					=	165
+'================================================================================================================
+'*Note: All numeric fields have an implied decimal. This means that for a number format of n.m, the left n characters
+'are assumed to be to the left of the decimal and the right m characters are assumed to be to the right of the decimal.
+'**Note: OrderNum in the 6004Lines field is not part of the file format and should not be included in any file export,
+'it is used only to link a line back to the appropriate header in the 6004Header table.
+Program.Sub.Preflight.Start
+V.Global.s6004Error.Declare(String)
+V.Global.s6004Company.Declare(String)
+V.Global.s6004User.Declare(String)
+V.Global.s6004FileName.Declare(String)
+
+V.Global.s6004Company.Set(V.Caller.CompanyCode)
+V.Global.s6004User.Set(V.Caller.User)
+F.Intrinsic.String.Build("LD{0}{1}",V.Caller.CompanyCode,V.Caller.Terminal,V.Global.s6004FileName)
+
+F.Data.DataTable.Create("6004Header",True)
+F.Data.DataTable.AddColumn("6004Header","Type","String")
+F.Data.DataTable.AddColumn("6004Header","CustNum","String")
+F.Data.DataTable.AddColumn("6004Header","OrderNum","String")
+F.Data.DataTable.AddColumn("6004Header","Freight","String")
+F.Data.DataTable.AddColumn("6004Header","TaxFreightFlag","String")
+F.Data.DataTable.AddColumn("6004Header","FreightPerPiece","String")
+F.Data.DataTable.AddColumn("6004Header","DueDate","String")
+F.Data.DataTable.AddColumn("6004Header","OrdDate","String")
+F.Data.DataTable.AddColumn("6004Header","User1","String")
+F.Data.DataTable.AddColumn("6004Header","User2","String")
+F.Data.DataTable.AddColumn("6004Header","User3","String")
+F.Data.DataTable.AddColumn("6004Header","User4","String")
+F.Data.DataTable.AddColumn("6004Header","User5","String")
+F.Data.DataTable.AddColumn("6004Header","UserID","String")
+F.Data.DataTable.AddColumn("6004Header","PO","String")
+F.Data.DataTable.AddColumn("6004Header","Filler1","String")
+F.Data.DataTable.AddColumn("6004Header","FreightCurrFlag","String")
+F.Data.DataTable.AddColumn("6004Header","Filler2","String","S")
+F.Data.DataTable.AddColumn("6004Header","ShipVia","String")
+F.Data.DataTable.AddColumn("6004Header","Carrier","String")
+F.Data.DataTable.AddColumn("6004Header","ShipName","String")
+F.Data.DataTable.AddColumn("6004Header","ShipAddr1","String")
+F.Data.DataTable.AddColumn("6004Header","ShipAddr2","String")
+F.Data.DataTable.AddColumn("6004Header","ShipAddr3","String")
+F.Data.DataTable.AddColumn("6004Header","ShipCity","String")
+F.Data.DataTable.AddColumn("6004Header","ShipState","String")
+F.Data.DataTable.AddColumn("6004Header","ShipZip","String")
+F.Data.DataTable.AddColumn("6004Header","ShipCountry","String")
+F.Data.DataTable.AddColumn("6004Header","ShipAttn","String")
+F.Data.DataTable.AddColumn("6004Header","Filler3","String")
+F.Data.DataTable.AddColumn("6004Header","OrderType","String")
+F.Data.DataTable.AddColumn("6004Header","OrderDiscountPer","String")
+F.Data.DataTable.AddColumn("6004Header","Salesman","String")
+F.Data.DataTable.AddColumn("6004Header","Filler5","String")
+F.Data.DataTable.AddColumn("6004Header","OverrideAutoNum","String")
+F.Data.DataTable.AddColumn("6004Header","ShipToId","String")
+F.Data.DataTable.AddColumn("6004Header","MarkShipment","String")
+F.Data.DataTable.AddColumn("6004Header","ContactName","String")
+F.Data.DataTable.AddColumn("6004Header","FromLocation","String")
+F.Data.DataTable.AddColumn("6004Header","Filler6","String")
+
+F.Data.DataTable.Create("6004Lines",True)
+F.Data.DataTable.AddColumn("6004Lines","OrderNum","String")
+F.Data.DataTable.AddColumn("6004Lines","LineNumber","String")
+F.Data.DataTable.AddColumn("6004Lines","Filler1","String")
+F.Data.DataTable.AddColumn("6004Lines","QtyOrdered","String")
+F.Data.DataTable.AddColumn("6004Lines","Weight","String")
+F.Data.DataTable.AddColumn("6004Lines","UM","String")
+F.Data.DataTable.AddColumn("6004Lines","Part","String")
+F.Data.DataTable.AddColumn("6004Lines","Rev","String")
+F.Data.DataTable.AddColumn("6004Lines","Filler2","String")
+F.Data.DataTable.AddColumn("6004Lines","Location","String")
+F.Data.DataTable.AddColumn("6004Lines","QuotedPrice","String")
+F.Data.DataTable.AddColumn("6004Lines","OverridePrice","String")
+F.Data.DataTable.AddColumn("6004Lines","Cost","String")
+F.Data.DataTable.AddColumn("6004Lines","PartDescription","String")
+F.Data.DataTable.AddColumn("6004Lines","PL","String")
+F.Data.DataTable.AddColumn("6004Lines","OrderDate","String")
+F.Data.DataTable.AddColumn("6004Lines","PromiseDate","String")
+F.Data.DataTable.AddColumn("6004Lines","User1","String")
+F.Data.DataTable.AddColumn("6004Lines","User2","String")
+F.Data.DataTable.AddColumn("6004Lines","User3","String")
+F.Data.DataTable.AddColumn("6004Lines","User4","String")
+F.Data.DataTable.AddColumn("6004Lines","User5","String")
+F.Data.DataTable.AddColumn("6004Lines","ExtendedAmount","String")
+F.Data.DataTable.AddColumn("6004Lines","NoDeliveryBeforeDate","String")
+F.Data.DataTable.AddColumn("6004Lines","MustDeliverByDate","String")
+F.Data.DataTable.AddColumn("6004Lines","Filler3","String","T")
+F.Data.DataTable.AddColumn("6004Lines","Text1","String")
+F.Data.DataTable.AddColumn("6004Lines","Text2","String")
+F.Data.DataTable.AddColumn("6004Lines","Text3","String")
+F.Data.DataTable.AddColumn("6004Lines","Text4","String")
+F.Data.DataTable.AddColumn("6004Lines","Text5","String")
+F.Data.DataTable.AddColumn("6004Lines","Text6","String")
+F.Data.DataTable.AddColumn("6004Lines","Text7","String")
+F.Data.DataTable.AddColumn("6004Lines","Text8","String")
+F.Data.DataTable.AddColumn("6004Lines","Text9","String")
+F.Data.DataTable.AddColumn("6004Lines","Text10","String")
+F.Data.DataTable.AddColumn("6004Lines","TaxStatusFlag","String")
+F.Data.DataTable.AddColumn("6004Lines","LineType","String")
+F.Data.DataTable.AddColumn("6004Lines","Filler4","String")
+Program.Sub.Preflight.End
+
+Program.Sub.6004.Start
+F.Intrinsic.Control.Try
+	V.Local.sParams.Declare(String)
+	V.Local.sFilePath.Declare(String)
+	V.Local.sFileContent.Declare(String)
+	V.Local.sFilter.Declare(String)
+	V.Local.sHeaderFull.Declare(String)
+	V.Local.sHeader.Declare(String)
+	V.Local.sDelimeter.Declare(String)
+	V.Local.sLines.Declare(String)
+	V.Local.sFieldList.Declare(String)
+	V.Local.sPadRet.Declare(String)
+	V.Local.iCount.Declare(Long)
+	
+	F.Intrinsic.String.Build("{0}\{1}",V.Caller.FilesDir,V.Global.s6004FileName,V.Local.sFilePath)
+	
+	'Padding datatable values to appropriate sizes
+	F.Intrinsic.Control.For(V.Local.iCount,0,V.DataTable.6004Header.RowCount--,1)
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).Type!FieldVal," ",1,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"Type",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).CustNum!FieldVal," ",7,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"CustNum",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).OrderNum!FieldVal," ",7,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"OrderNum",V.Local.sPadRet)
+
+		F.Intrinsic.String.LPad(V.DataTable.6004Header(V.Local.iCount).Freight!FieldVal,"0",10,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"Freight",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).TaxFreightFlag!FieldVal," ",1,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"TaxFreightFlag",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).FreightPerPiece!FieldVal," ",1,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"FreightPerPiece",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).DueDate!FieldVal," ",8,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"DueDate",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).OrdDate!FieldVal," ",8,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"OrdDate",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).User1!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"User1",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).User2!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"User2",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).User3!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"User3",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).User4!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"User4",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).User5!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"User5",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).UserID!FieldVal," ",8,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"UserID",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).PO!FieldVal," ",15,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"PO",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).Filler1!FieldVal," ",15,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"Filler1",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).FreightCurrFlag!FieldVal," ",1,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"FreightCurrFlag",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).Filler2!FieldVal," ",1,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"Filler2",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).ShipVia!FieldVal," ",20,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"ShipVia",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).Carrier!FieldVal," ",6,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"Carrier",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).ShipName!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"ShipName",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).ShipAddr1!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"ShipAddr1",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).ShipAddr2!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"ShipAddr2",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).ShipAddr3!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"ShipAddr3",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).ShipCity!FieldVal," ",25,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"ShipCity",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).ShipState!FieldVal," ",2,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"ShipState",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).ShipZip!FieldVal," ",13,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"ShipZip",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).ShipCountry!FieldVal," ",3,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"ShipCountry",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).ShipAttn!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"ShipAttn",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).Filler3!FieldVal," ",11,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"Filler3",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).OrderType!FieldVal," ",1,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"OrderType",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).OrderDiscountPer!FieldVal," ",5,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"OrderDiscountPer",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).Salesman!FieldVal," ",3,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"Salesman",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).Filler5!FieldVal," ",75,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"Filler5",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).OverrideAutoNum!FieldVal," ",1,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"OverrideAutoNum",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).ShipToId!FieldVal," ",6,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"ShipToId",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).MarkShipment!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"MarkShipment",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).ContactName!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"ContactName",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).FromLocation!FieldVal," ",2,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"FromLocation",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Header(V.Local.iCount).Filler6!FieldVal," ",85,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Header",V.Local.iCount,"Filler6",V.Local.sPadRet)
+		F.Intrinsic.Control.Next(V.Local.iCount)
+	
+	F.Intrinsic.Control.For(V.Local.iCount,0,V.DataTable.6004Lines.RowCount--,1)
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).OrderNum!FieldVal," ",7,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"OrderNum",V.Local.sPadRet)
+
+		F.Intrinsic.String.LPad(V.DataTable.6004Lines(V.Local.iCount).LineNumber!FieldVal,"0",3,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"LineNumber",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).Filler1!FieldVal," ",1,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Filler1",V.Local.sPadRet)
+
+		F.Intrinsic.String.LPad(V.DataTable.6004Lines(V.Local.iCount).QtyOrdered!FieldVal,"0",13,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"QtyOrdered",V.Local.sPadRet)
+
+		F.Intrinsic.String.LPad(V.DataTable.6004Lines(V.Local.iCount).Weight!FieldVal,"0",10,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Weight",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).UM!FieldVal," ",2,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"UM",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).Part!FieldVal," ",17,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Part",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).Rev!FieldVal," ",3,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Rev",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).Filler2!FieldVal," ",18,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Filler2",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).Location!FieldVal," ",2,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Location",V.Local.sPadRet)
+
+		F.Intrinsic.String.LPad(V.DataTable.6004Lines(V.Local.iCount).QuotedPrice!FieldVal,"0",16,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"QuotedPrice",V.Local.sPadRet)
+
+		F.Intrinsic.String.LPad(V.DataTable.6004Lines(V.Local.iCount).OverridePrice!FieldVal,"0",16,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"OverridePrice",V.Local.sPadRet)
+
+		F.Intrinsic.String.LPad(V.DataTable.6004Lines(V.Local.iCount).Cost!FieldVal,"0",16,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Cost",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).PartDescription!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"PartDescription",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).PL!FieldVal," ",3,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"PL",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).OrderDate!FieldVal," ",8,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"OrderDate",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).PromiseDate!FieldVal," ",8,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"PromiseDate",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).User1!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"User1",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).User2!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"User2",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).User3!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"User3",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).User4!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"User4",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).User5!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"User5",V.Local.sPadRet)
+
+		F.Intrinsic.String.LPad(V.DataTable.6004Lines(V.Local.iCount).ExtendedAmount!FieldVal,"0",16,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"ExtendedAmount",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).NoDeliveryBeforeDate!FieldVal," ",8,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"NoDeliveryBeforeDate",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).MustDeliverByDate!FieldVal," ",8,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"MustDeliverByDate",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).Filler3!FieldVal," ",1,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Filler3",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).Text1!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Text1",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).Text2!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Text2",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).Text3!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Text3",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).Text4!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Text4",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).Text5!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Text5",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).Text6!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Text6",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).Text7!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Text7",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).Text8!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Text8",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).Text9!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Text9",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).Text10!FieldVal," ",30,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Text10",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).TaxStatusFlag!FieldVal," ",1,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"TaxStatusFlag",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).LineType!FieldVal," ",1,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"LineType",V.Local.sPadRet)
+
+		F.Intrinsic.String.RPad(V.DataTable.6004Lines(V.Local.iCount).Filler4!FieldVal," ",165,V.Local.sPadRet)
+		F.Data.DataTable.SetValue("6004Lines",V.Local.iCount,"Filler4",V.Local.sPadRet)
+
+	F.Intrinsic.Control.Next(V.Local.iCount)
+		
+	'Build the header line, find all related lines fron the lines table, then export those lines with the header in front to file content.
+	F.Intrinsic.Control.For(V.Local.iCount,0,V.DataTable.6004Header.RowCount--,1)
+		F.Data.DataView.Create("6004Header","6004HeaderView",22)
+		F.Data.DataView.ToString("6004Header","6004HeaderView","","*!*",V.Local.sHeaderFull)
+		F.Data.DataView.Close("6004Header","6004HeaderView")
+		
+		F.Intrinsic.String.Split(V.Local.sHeaderFull,"*!*",V.Local.sHeaderFull)
+		V.Local.sHeader.Set(V.Local.sHeaderFull(V.Local.iCount))
+		'Header is now the header for the row that we are currently in. We append a new line to the front of it to be used as the outer delimer in our toString of the lines DV 
+		F.Intrinsic.String.Build("{0}{1}",V.Ambient.NewLine,V.Local.sHeader,V.Local.sDelimeter)
+		
+		'We have to remove the order number from the lines field when we export it as it is only there to link the lines to the appropriate header and is not used in the upload file
+		V.Local.sFieldList.Set(V.DataTable.6004Lines.FieldNames)
+		F.Intrinsic.String.Replace(V.Local.sFieldList,V.Local.sFieldList.Left11,"",V.Local.sFieldList)
+		
+		F.Intrinsic.String.Build("OrderNum = '{0}'",V.DataTable.6004Header(V.Local.iCount).OrderNum!FieldVal,V.Local.sFilter)
+		F.Data.DataView.Create("6004Lines","6004LinesView",22,V.Local.sFilter,"")
+		F.Data.DataView.ToString("6004Lines","6004LinesView",V.Local.sFieldList,"",V.Local.sDelimeter,V.Local.sLines)
+		F.Data.DataView.Close("6004Lines","6004LinesView")
+		
+		'Lines now consists of Line NewLine HeaderLine NewLine HeaderLine...We add the header to the beginning as it is missing
+		F.Intrinsic.String.Build("{0}{1}",V.Local.sHeader,V.Local.sLines,V.Local.sLines)
+		
+		'Now add the properly formatted lines to the file content to be written
+		F.Intrinsic.Control.If(V.Local.sFileContent.Length,=,0)
+			V.Local.sFileContent.Set(V.Local.sLines)
+		F.Intrinsic.Control.Else
+			F.Intrinsic.String.Build("{0}{1}{2}",V.Local.sFileContent,V.Ambient.NewLine,V.Local.sLines,V.Local.sFileContent)
+		F.Intrinsic.Control.EndIf
+	
+	F.Intrinsic.Control.Next(V.Local.iCount)
+	
+	F.Intrinsic.File.String2File(V.Local.sFilePath,V.Local.sFileContent)
+	
+	F.Intrinsic.String.ConcatCallWrapperArgs(V.Global.s6004Company,V.Global.s6004User,V.Global.s6004FileName,V.Local.sParams)
+	
+	F.Intrinsic.Control.SelectCase(V.Args.CallWrapperType)
+		F.Intrinsic.Control.Case(0)
+			F.Global.General.CallWrapperSync(6004,V.Local.sParams)
+		F.Intrinsic.Control.Case(1)
+			F.Global.General.CallWrapperAsync(6004,V.Local.sParams)
+	F.Intrinsic.Control.EndSelect
+	
+	F.Data.DataTable.DeleteRow("6004Header")
+	F.Data.DataTable.DeleteRow("6004Lines")
+	
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(CatchError6004,"Sub",V.Ambient.CurrentSubroutine,"ErrNo",V.Ambient.ErrorNumber,"ErrDesc",V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+Program.Sub.6004.End
+
+'Calls 6004 with callwrapper type of 0
+Program.Sub.6004Sync.Start
+F.Intrinsic.Control.Try
+	F.Intrinsic.Control.CallSub(6004,"CallWrapperType",0)
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(CatchError6004, "Sub", V.Ambient.CurrentSubroutine, "ErrNo", V.Ambient.ErrorNumber, "ErrDesc", V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+Program.Sub.6004Sync.End
+
+'Calls 6004 with callwrapper type of 1
+Program.Sub.6004Async.Start
+F.Intrinsic.Control.Try
+	F.Intrinsic.Control.CallSub(6004,"CallWrapperType",1)
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.CallSub(CatchError6004, "Sub", V.Ambient.CurrentSubroutine, "ErrNo", V.Ambient.ErrorNumber, "ErrDesc", V.Ambient.ErrorDescription)
+F.Intrinsic.Control.EndTry
+Program.Sub.6004Async.End
+
+Program.Sub.CatchError6004.Start
+F.Intrinsic.String.Build("{0}*!*{1}*!*{2}", V.Args.Sub, V.Args.ErrNo, V.Args.ErrDesc, V.Global.s6004Error)
+Program.Sub.CatchError6004.End
